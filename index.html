@@ -1,0 +1,577 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Interactive Dog Breed Selector</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Chosen Palette: Warm Neutrals -->
+    <!-- Application Structure Plan: The application is structured as a user-centric journey. It begins with an interactive "Matchmaker" quiz to provide immediate, personalized value. This quiz directly implements the report's decision-tree logic in a more engaging format. The results guide the user to a detailed "Explore" section, where they can deep-dive into the report's rich content on their own terms. This section uses a tabbed interface and radar charts for easy comparison, transforming static tables into dynamic visualizations. A dedicated "Compare Groups" feature allows for direct side-by-side analysis. This structure was chosen to turn passive report consumption into an active, exploratory process, empowering the user to make an informed decision based on their specific needs first, then providing the depth of the original content for further research. -->
+    <!-- Visualization & Content Choices: 
+        - Report Info: User lifestyle (activity, home, time, experience). Goal: Personalize. Viz: HTML Quiz Form. Interaction: Radio button selection. Justification: Most direct way to capture user input for tailored recommendations of specific breeds. Library: Vanilla JS.
+        - Report Info: Breed-specific trait ratings (Energy, Trainability, etc.). Goal: Compare. Viz: Radar Chart within a modal. Interaction: Hover for tooltips, dynamic generation based on selection. Justification: Radar charts excel at multi-variable comparison, and placing them in a modal allows for on-demand deep dives without cluttering the main UI. Library: Chart.js.
+        - Report Info: Detailed breed descriptions. Goal: Inform. Viz: Modals and expandable divs. Interaction: Click to reveal content. Justification: Progressive disclosure keeps the UI clean. The modal is a key enhancement to show breed-specific details without leaving the results page. Library: Vanilla JS.
+        - Report Info: Pros and Cons. Goal: Summarize. Viz: Styled HTML lists with icons. Interaction: Static. Justification: Quick, scannable summary of key takeaways. Library: HTML/CSS.
+    -->
+    <!-- CONFIRMATION: NO SVG graphics used. NO Mermaid JS used. -->
+    <style>
+        body { font-family: 'Inter', sans-serif; background-color: #FDFBF8; }
+        .chart-container { position: relative; width: 100%; max-width: 400px; margin-left: auto; margin-right: auto; height: 280px; max-height: 350px; }
+        @media (min-width: 768px) { .chart-container { height: 300px; } }
+        .nav-button { transition: all 0.3s ease; }
+        .nav-button.active { color: #8C5A3A; border-color: #8C5A3A; background-color: #FDFBF8; }
+        .nav-button:not(.active) { color: #7D7C7A; border-color: transparent; }
+        .quiz-card { transition: transform 0.3s ease, box-shadow 0.3s ease; }
+        .quiz-card:hover { transform: translateY(-5px); box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.05), 0 4px 6px -2px rgba(0, 0, 0, 0.03); }
+        .fade-in { animation: fadeIn 0.5s ease-in-out; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        .result-card { border: 1px solid #EAE8E4; transition: all 0.3s ease; cursor: pointer; }
+        .result-card:hover { border-color: #D1C7BC; box-shadow: 0 4px 12px rgba(0,0,0,0.05); transform: translateY(-2px); }
+        #breed-modal { transition: opacity 0.3s ease; }
+        #breed-modal-content { transition: transform 0.3s ease; }
+    </style>
+</head>
+<body class="text-gray-800">
+
+    <header class="bg-white/80 backdrop-blur-sm sticky top-0 z-50 shadow-sm">
+        <div class="container mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex items-center justify-between h-16">
+                <div class="flex items-center">
+                    <span class="text-2xl font-bold text-[#8C5A3A]">🐾</span>
+                    <h1 class="ml-3 text-xl font-bold tracking-tight text-[#4A4A4A]">Canine Compatibility Guide</h1>
+                </div>
+                <nav class="hidden md:flex items-center space-x-2" id="desktop-nav">
+                    <button data-target="matchmaker" class="nav-button active font-medium px-3 py-2 text-sm rounded-md border-b-2">Matchmaker</button>
+                    <button data-target="explore" class="nav-button font-medium px-3 py-2 text-sm rounded-md border-b-2">Explore Breeds</button>
+                    <button data-target="compare" class="nav-button font-medium px-3 py-2 text-sm rounded-md border-b-2">Compare</button>
+                </nav>
+            </div>
+        </div>
+    </header>
+
+    <main class="container mx-auto p-4 sm:p-6 lg:p-8">
+        
+        <section id="matchmaker" class="app-section">
+            <div class="text-center mb-12">
+                <h2 class="text-3xl md:text-4xl font-bold text-gray-800">Find Your Perfect Canine Companion</h2>
+                <p class="mt-4 max-w-2xl mx-auto text-lg text-gray-600">Answer a few questions about your lifestyle, and we'll help you discover which dog breeds are the best fit for you. This quiz helps translate your life into a dog's needs.</p>
+            </div>
+
+            <div id="quiz-container" class="space-y-12">
+                <!-- Quiz Step 1: Activity Level -->
+                <div class="quiz-step" data-step="1">
+                    <h3 class="text-xl font-semibold text-center mb-6">1. What's your ideal daily activity level with a dog?</h3>
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-4xl mx-auto">
+                        <label class="quiz-card bg-white p-6 rounded-lg shadow-sm cursor-pointer border-2 border-transparent has-[:checked]:border-[#8C5A3A] has-[:checked]:bg-[#F9F5F2]">
+                            <input type="radio" name="activity" value="low" class="sr-only">
+                            <h4 class="font-bold text-lg text-center">🛋️ Low Key</h4>
+                            <p class="text-gray-600 text-sm text-center mt-2">Short, leisurely walks and lots of cuddle time.</p>
+                        </label>
+                        <label class="quiz-card bg-white p-6 rounded-lg shadow-sm cursor-pointer border-2 border-transparent has-[:checked]:border-[#8C5A3A] has-[:checked]:bg-[#F9F5F2]">
+                            <input type="radio" name="activity" value="moderate" class="sr-only">
+                            <h4 class="font-bold text-lg text-center">🚶‍♂️ Steady Paced</h4>
+                            <p class="text-gray-600 text-sm text-center mt-2">Daily walks of 30-60 mins & weekend adventures.</p>
+                        </label>
+                        <label class="quiz-card bg-white p-6 rounded-lg shadow-sm cursor-pointer border-2 border-transparent has-[:checked]:border-[#8C5A3A] has-[:checked]:bg-[#F9F5F2]">
+                            <input type="radio" name="activity" value="high" class="sr-only">
+                            <h4 class="font-bold text-lg text-center">🏃‍♀️ High Energy</h4>
+                            <p class="text-gray-600 text-sm text-center mt-2">A daily partner for running, hiking, or intense sports.</p>
+                        </label>
+                    </div>
+                </div>
+
+                <!-- Quiz Step 2: Living Space -->
+                <div class="quiz-step" data-step="2">
+                    <h3 class="text-xl font-semibold text-center mb-6">2. What is your living situation?</h3>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-2xl mx-auto">
+                        <label class="quiz-card bg-white p-6 rounded-lg shadow-sm cursor-pointer border-2 border-transparent has-[:checked]:border-[#8C5A3A] has-[:checked]:bg-[#F9F5F2]">
+                            <input type="radio" name="home" value="apartment" class="sr-only">
+                            <h4 class="font-bold text-lg text-center">🏙️ Apartment / Small Space</h4>
+                            <p class="text-gray-600 text-sm text-center mt-2">No private yard, but access to parks.</p>
+                        </label>
+                        <label class="quiz-card bg-white p-6 rounded-lg shadow-sm cursor-pointer border-2 border-transparent has-[:checked]:border-[#8C5A3A] has-[:checked]:bg-[#F9F5F2]">
+                            <input type="radio" name="home" value="house" class="sr-only">
+                            <h4 class="font-bold text-lg text-center">🏡 House with a Yard</h4>
+                            <p class="text-gray-600 text-sm text-center mt-2">A home with private outdoor space.</p>
+                        </label>
+                    </div>
+                </div>
+                
+                <!-- Quiz Step 3: Experience Level -->
+                <div class="quiz-step" data-step="3">
+                    <h3 class="text-xl font-semibold text-center mb-6">3. What's your experience level with dog ownership?</h3>
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-4xl mx-auto">
+                        <label class="quiz-card bg-white p-6 rounded-lg shadow-sm cursor-pointer border-2 border-transparent has-[:checked]:border-[#8C5A3A] has-[:checked]:bg-[#F9F5F2]">
+                            <input type="radio" name="experience" value="novice" class="sr-only">
+                            <h4 class="font-bold text-lg text-center">🔰 Novice</h4>
+                            <p class="text-gray-600 text-sm text-center mt-2">This is my first time being the primary owner.</p>
+                        </label>
+                        <label class="quiz-card bg-white p-6 rounded-lg shadow-sm cursor-pointer border-2 border-transparent has-[:checked]:border-[#8C5A3A] has-[:checked]:bg-[#F9F5F2]">
+                            <input type="radio" name="experience" value="intermediate" class="sr-only">
+                            <h4 class="font-bold text-lg text-center">👍 Intermediate</h4>
+                            <p class="text-gray-600 text-sm text-center mt-2">I've owned dogs before and know the basics.</p>
+                        </label>
+                        <label class="quiz-card bg-white p-6 rounded-lg shadow-sm cursor-pointer border-2 border-transparent has-[:checked]:border-[#8C5A3A] has-[:checked]:bg-[#F9F5F2]">
+                            <input type="radio" name="experience" value="experienced" class="sr-only">
+                            <h4 class="font-bold text-lg text-center">⭐ Experienced</h4>
+                            <p class="text-gray-600 text-sm text-center mt-2">I'm confident handling stubborn or high-need breeds.</p>
+                        </label>
+                    </div>
+                </div>
+
+                <!-- Quiz Step 4: Household -->
+                <div class="quiz-step" data-step="4">
+                    <h3 class="text-xl font-semibold text-center mb-6">4. What is your household like?</h3>
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-4xl mx-auto">
+                        <label class="quiz-card bg-white p-6 rounded-lg shadow-sm cursor-pointer border-2 border-transparent has-[:checked]:border-[#8C5A3A] has-[:checked]:bg-[#F9F5F2]">
+                            <input type="radio" name="household" value="adults" class="sr-only">
+                            <h4 class="font-bold text-lg text-center">👤 Adults Only</h4>
+                            <p class="text-gray-600 text-sm text-center mt-2">Just adults, no other pets.</p>
+                        </label>
+                        <label class="quiz-card bg-white p-6 rounded-lg shadow-sm cursor-pointer border-2 border-transparent has-[:checked]:border-[#8C5A3A] has-[:checked]:bg-[#F9F5F2]">
+                            <input type="radio" name="household" value="kids" class="sr-only">
+                            <h4 class="font-bold text-lg text-center">👨‍👩‍👧‍👦 Family with Kids</h4>
+                            <p class="text-gray-600 text-sm text-center mt-2">Children (especially under 7) are in the home.</p>
+                        </label>
+                        <label class="quiz-card bg-white p-6 rounded-lg shadow-sm cursor-pointer border-2 border-transparent has-[:checked]:border-[#8C5A3A] has-[:checked]:bg-[#F9F5F2]">
+                            <input type="radio" name="household" value="pets" class="sr-only">
+                            <h4 class="font-bold text-lg text-center">🐾 Multi-Pet Home</h4>
+                            <p class="text-gray-600 text-sm text-center mt-2">I have other pets like cats or small animals.</p>
+                        </label>
+                    </div>
+                </div>
+
+                <!-- Quiz Step 5: Time Alone -->
+                <div class="quiz-step" data-step="5">
+                    <h3 class="text-xl font-semibold text-center mb-6">5. How much time will the dog spend alone on a typical day?</h3>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-2xl mx-auto">
+                        <label class="quiz-card bg-white p-6 rounded-lg shadow-sm cursor-pointer border-2 border-transparent has-[:checked]:border-[#8C5A3A] has-[:checked]:bg-[#F9F5F2]">
+                            <input type="radio" name="alone" value="not_much" class="sr-only">
+                            <h4 class="font-bold text-lg text-center">🏠 Rarely Alone</h4>
+                            <p class="text-gray-600 text-sm text-center mt-2">Alone for less than 4 hours.</p>
+                        </label>
+                        <label class="quiz-card bg-white p-6 rounded-lg shadow-sm cursor-pointer border-2 border-transparent has-[:checked]:border-[#8C5A3A] has-[:checked]:bg-[#F9F5F2]">
+                            <input type="radio" name="alone" value="long_hours" class="sr-only">
+                            <h4 class="font-bold text-lg text-center">💼 Standard Workday</h4>
+                            <p class="text-gray-600 text-sm text-center mt-2">Alone for a typical 8-hour workday.</p>
+                        </label>
+                    </div>
+                </div>
+                
+                <div class="text-center pt-6">
+                    <button id="submit-quiz" class="bg-[#8C5A3A] text-white font-bold py-3 px-8 rounded-lg hover:bg-[#734a2f] transition-colors disabled:bg-gray-300">Find My Matches</button>
+                    <p id="quiz-error" class="text-red-500 mt-4 text-sm hidden">Please answer all questions to see your results.</p>
+                </div>
+            </div>
+
+            <div id="results-container" class="hidden mt-16"></div>
+        </section>
+        
+        <section id="explore" class="app-section hidden">
+            <div class="text-center mb-12">
+                <h2 class="text-3xl md:text-4xl font-bold text-gray-800">Explore the Breeds</h2>
+                <p class="mt-4 max-w-2xl mx-auto text-lg text-gray-600">Dive deeper into the breed groups to see all the dogs within them. Understanding their original purpose is key to understanding their needs.</p>
+            </div>
+            <div class="flex flex-wrap justify-center gap-2 mb-8 border-b border-gray-200" id="explore-tabs"></div>
+            <div id="explore-content" class="fade-in"></div>
+        </section>
+
+        <section id="compare" class="app-section hidden">
+            <div class="text-center mb-12">
+                <h2 class="text-3xl md:text-4xl font-bold text-gray-800">Compare Breeds Side-by-Side</h2>
+                <p class="mt-4 max-w-2xl mx-auto text-lg text-gray-600">Select up to three breeds to see a direct comparison of their core traits. This tool helps visualize the differences in energy, trainability, and more.</p>
+            </div>
+            <div class="flex flex-wrap justify-center gap-4 mb-8">
+                <select id="compare-select-1" class="p-2 border rounded-md bg-white w-full md:w-auto"></select>
+                <select id="compare-select-2" class="p-2 border rounded-md bg-white w-full md:w-auto"></select>
+                <select id="compare-select-3" class="p-2 border rounded-md bg-white w-full md:w-auto"></select>
+            </div>
+            <div id="compare-charts" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8"></div>
+        </section>
+
+    </main>
+    
+    <!-- Breed Detail Modal -->
+    <div id="breed-modal" class="fixed inset-0 bg-black bg-opacity-50 z-50 hidden items-center justify-center p-4">
+        <div id="breed-modal-content" class="bg-white rounded-lg shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-y-auto transform scale-95">
+            <!-- Content will be injected by JS -->
+        </div>
+    </div>
+
+    <footer class="bg-gray-100 mt-16">
+        <div class="container mx-auto py-8 px-4 sm:px-6 lg:px-8 text-center text-gray-600">
+            <p class="font-bold text-lg text-[#8C5A3A]">🐾 Remember: Choose the Individual, Not Just the Breed</p>
+            <p class="mt-2 text-sm max-w-3xl mx-auto">This guide provides a roadmap based on breed tendencies, but every dog is an individual. The best partnership comes from a commitment to training, socialization, and loving care. Consider visiting a local shelter or reputable breeder to meet your future companion.</p>
+        </div>
+    </footer>
+
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const breedData = {
+                'Sporting': { emoji: '🎯', tagline: 'The Cooperative Hunter', breeds: [
+                    { name: 'Labrador Retriever', size: 'large', energy: 'high', trainability: 'easy', grooming: 'moderate', vocalness: 'moderate', good_with_kids: 'yes', good_with_pets: 'yes', apartment_friendly: 'possible', alone_tolerance: 'poor', experience_level: 'novice', summary: 'Quintessential family dog; good-natured but needs lots of exercise.', scores: { energy: 4, trainability: 5, social: 5, grooming: 3, vocal: 2 } },
+                    { name: 'Golden Retriever', size: 'large', energy: 'high', trainability: 'easy', grooming: 'high', vocalness: 'moderate', good_with_kids: 'yes', good_with_pets: 'yes', apartment_friendly: 'possible', alone_tolerance: 'poor', experience_level: 'novice', summary: 'Gentle and intelligent; very sensitive and requires significant grooming.', scores: { energy: 4, trainability: 5, social: 5, grooming: 4, vocal: 2 } },
+                    { name: 'Cocker Spaniel', size: 'medium', energy: 'moderate', trainability: 'easy', grooming: 'high', vocalness: 'moderate', good_with_kids: 'yes', good_with_pets: 'supervision', apartment_friendly: 'yes', alone_tolerance: 'poor', experience_level: 'novice', summary: 'Happy and small; forms very strong bonds, prone to separation anxiety.', scores: { energy: 3, trainability: 4, social: 4, grooming: 5, vocal: 3 } },
+                    { name: 'German Shorthaired Pointer', size: 'large', energy: 'very_high', trainability: 'easy', grooming: 'low', vocalness: 'moderate', good_with_kids: 'supervision', good_with_pets: 'supervision', apartment_friendly: 'no', alone_tolerance: 'poor', experience_level: 'intermediate', summary: 'Versatile, high-energy hunter that needs a job to do.', scores: { energy: 5, trainability: 5, social: 3, grooming: 1, vocal: 3 } },
+                    { name: 'Vizsla', size: 'large', energy: 'very_high', trainability: 'easy', grooming: 'low', vocalness: 'high', good_with_kids: 'yes', good_with_pets: 'supervision', apartment_friendly: 'no', alone_tolerance: 'poor', experience_level: 'intermediate', summary: 'The "Velcro" dog, an energetic and affectionate companion.', scores: { energy: 5, trainability: 5, social: 4, grooming: 1, vocal: 4 } },
+                ]},
+                'Hound': { emoji: '👃', tagline: 'The Independent Hunter', breeds: [
+                    { name: 'Beagle', size: 'small', energy: 'high', trainability: 'challenging', grooming: 'moderate', vocalness: 'high', good_with_kids: 'yes', good_with_pets: 'supervision', apartment_friendly: 'yes', alone_tolerance: 'poor', experience_level: 'novice', summary: 'Merry and friendly but ruled by their nose; prone to wandering.', scores: { energy: 4, trainability: 1, social: 4, grooming: 2, vocal: 5 } },
+                    { name: 'Basset Hound', size: 'medium', energy: 'low', trainability: 'challenging', grooming: 'moderate', vocalness: 'high', good_with_kids: 'yes', good_with_pets: 'yes', apartment_friendly: 'yes', alone_tolerance: 'moderate', experience_level: 'novice', summary: 'Low-key and patient but famously stubborn and vocal.', scores: { energy: 1, trainability: 1, social: 5, grooming: 3, vocal: 5 } },
+                    { name: 'Greyhound', size: 'large', energy: 'moderate', trainability: 'average', grooming: 'low', vocalness: 'low', good_with_kids: 'supervision', good_with_pets: 'no', apartment_friendly: 'yes', alone_tolerance: 'good', experience_level: 'novice', summary: 'Gentle "couch potato" with a high prey drive.', scores: { energy: 3, trainability: 3, social: 3, grooming: 1, vocal: 1 } },
+                    { name: 'Dachshund', size: 'small', energy: 'moderate', trainability: 'challenging', grooming: 'moderate', vocalness: 'high', good_with_kids: 'supervision', good_with_pets: 'supervision', apartment_friendly: 'yes', alone_tolerance: 'moderate', experience_level: 'novice', summary: 'Brave and bold, but stubborn and can be difficult to housetrain.', scores: { energy: 3, trainability: 2, social: 3, grooming: 2, vocal: 4 } },
+                    { name: 'Rhodesian Ridgeback', size: 'large', energy: 'high', trainability: 'challenging', grooming: 'low', vocalness: 'low', good_with_kids: 'supervision', good_with_pets: 'supervision', apartment_friendly: 'no', alone_tolerance: 'good', experience_level: 'experienced', summary: 'Dignified and independent, originally bred to hunt lions.', scores: { energy: 4, trainability: 2, social: 3, grooming: 1, vocal: 2 } },
+                ]},
+                'Working': { emoji: '💪', tagline: 'The Purpose-Bred Powerhouse', breeds: [
+                    { name: 'German Shepherd', size: 'large', energy: 'high', trainability: 'easy', grooming: 'high', vocalness: 'moderate', good_with_kids: 'supervision', good_with_pets: 'supervision', apartment_friendly: 'possible', alone_tolerance: 'poor', experience_level: 'intermediate', summary: 'Highly intelligent and versatile; needs a job and can be wary of strangers.', scores: { energy: 4, trainability: 5, social: 3, grooming: 4, vocal: 3 } },
+                    { name: 'Boxer', size: 'large', energy: 'high', trainability: 'average', grooming: 'low', vocalness: 'moderate', good_with_kids: 'yes', good_with_pets: 'supervision', apartment_friendly: 'possible', alone_tolerance: 'poor', experience_level: 'novice', summary: 'Playful and loyal; can be rambunctious and stubborn.', scores: { energy: 4, trainability: 3, social: 4, grooming: 1, vocal: 3 } },
+                    { name: 'Siberian Husky', size: 'large', energy: 'very_high', trainability: 'challenging', grooming: 'high', vocalness: 'high', good_with_kids: 'yes', good_with_pets: 'no', apartment_friendly: 'no', alone_tolerance: 'poor', experience_level: 'experienced', summary: 'Endurance athlete; mischievous, a notorious escape artist, and very vocal.', scores: { energy: 5, trainability: 2, social: 4, grooming: 4, vocal: 5 } },
+                    { name: 'Great Dane', size: 'giant', energy: 'moderate', trainability: 'average', grooming: 'low', vocalness: 'moderate', good_with_kids: 'yes', good_with_pets: 'yes', apartment_friendly: 'yes', alone_tolerance: 'moderate', experience_level: 'intermediate', summary: 'A gentle giant, but their size can be a challenge to manage.', scores: { energy: 3, trainability: 3, social: 5, grooming: 2, vocal: 3 } },
+                    { name: 'Bernese Mountain Dog', size: 'giant', energy: 'moderate', trainability: 'easy', grooming: 'high', vocalness: 'moderate', good_with_kids: 'yes', good_with_pets: 'yes', apartment_friendly: 'no', alone_tolerance: 'poor', experience_level: 'novice', summary: 'Good-natured and calm, but has a short lifespan and high grooming needs.', scores: { energy: 3, trainability: 4, social: 5, grooming: 5, vocal: 3 } },
+                ]},
+                'Terrier': { emoji: '🐾', tagline: 'The Tenacious Vermin Hunter', breeds: [
+                    { name: 'Jack Russell Terrier', size: 'small', energy: 'very_high', trainability: 'challenging', grooming: 'low', vocalness: 'high', good_with_kids: 'supervision', good_with_pets: 'no', apartment_friendly: 'possible', alone_tolerance: 'moderate', experience_level: 'experienced', summary: 'Tireless worker with endless energy; a challenge for novice owners.', scores: { energy: 5, trainability: 2, social: 2, grooming: 2, vocal: 4 } },
+                    { name: 'West Highland White Terrier', size: 'small', energy: 'moderate', trainability: 'average', grooming: 'moderate', vocalness: 'high', good_with_kids: 'supervision', good_with_pets: 'supervision', apartment_friendly: 'yes', alone_tolerance: 'moderate', experience_level: 'novice', summary: 'Confident and cheerful; stubborn but adapts well to apartment living.', scores: { energy: 3, trainability: 3, social: 3, grooming: 3, vocal: 4 } },
+                    { name: 'Bull Terrier', size: 'medium', energy: 'high', trainability: 'challenging', grooming: 'low', vocalness: 'low', good_with_kids: 'supervision', good_with_pets: 'no', apartment_friendly: 'possible', alone_tolerance: 'poor', experience_level: 'experienced', summary: 'Playful and clownish; can be aggressive toward other animals.', scores: { energy: 4, trainability: 2, social: 2, grooming: 1, vocal: 2 } },
+                    { name: 'Scottish Terrier', size: 'small', energy: 'moderate', trainability: 'challenging', grooming: 'moderate', vocalness: 'high', good_with_kids: 'supervision', good_with_pets: 'no', apartment_friendly: 'yes', alone_tolerance: 'good', experience_level: 'intermediate', summary: 'Independent and dignified; can be aloof and scrappy with other dogs.', scores: { energy: 3, trainability: 2, social: 2, grooming: 3, vocal: 4 } },
+                ]},
+                'Toy': { emoji: '❤️', tagline: 'The Dedicated Companion', breeds: [
+                    { name: 'Chihuahua', size: 'toy', energy: 'moderate', trainability: 'average', grooming: 'low', vocalness: 'high', good_with_kids: 'supervision', good_with_pets: 'supervision', apartment_friendly: 'yes', alone_tolerance: 'poor', experience_level: 'novice', summary: 'Huge personality, loyal but can be wary of strangers.', scores: { energy: 2, trainability: 3, social: 2, grooming: 1, vocal: 4 } },
+                    { name: 'Pug', size: 'toy', energy: 'low', trainability: 'average', grooming: 'high', vocalness: 'moderate', good_with_kids: 'yes', good_with_pets: 'yes', apartment_friendly: 'yes', alone_tolerance: 'poor', experience_level: 'novice', summary: 'Charming and comical; low-energy but suffers from health problems.', scores: { energy: 1, trainability: 3, social: 4, grooming: 4, vocal: 3 } },
+                    { name: 'Cavalier King Charles Spaniel', size: 'toy', energy: 'low', trainability: 'easy', grooming: 'moderate', vocalness: 'moderate', good_with_kids: 'yes', good_with_pets: 'yes', apartment_friendly: 'yes', alone_tolerance: 'poor', experience_level: 'novice', summary: 'Exceptionally affectionate; suffers greatly from separation anxiety.', scores: { energy: 2, trainability: 5, social: 5, grooming: 3, vocal: 3 } },
+                    { name: 'Pomeranian', size: 'toy', energy: 'moderate', trainability: 'average', grooming: 'high', vocalness: 'high', good_with_kids: 'supervision', good_with_pets: 'supervision', apartment_friendly: 'yes', alone_tolerance: 'poor', experience_level: 'novice', summary: 'Lively and bold with a glorious coat that needs lots of grooming.', scores: { energy: 3, trainability: 3, social: 3, grooming: 5, vocal: 5 } },
+                    { name: 'Yorkshire Terrier', size: 'toy', energy: 'high', trainability: 'average', grooming: 'high', vocalness: 'high', good_with_kids: 'supervision', good_with_pets: 'no', apartment_friendly: 'yes', alone_tolerance: 'moderate', experience_level: 'novice', summary: 'A tiny terrier in a glamorous coat; feisty and brave.', scores: { energy: 4, trainability: 3, social: 2, grooming: 5, vocal: 4 } },
+                ]},
+                'Non-Sporting': { emoji: '🧩', tagline: 'The Diverse Specialists', breeds: [
+                    { name: 'Dalmatian', size: 'large', energy: 'very_high', trainability: 'average', grooming: 'moderate', vocalness: 'moderate', good_with_kids: 'supervision', good_with_pets: 'supervision', apartment_friendly: 'no', alone_tolerance: 'poor', experience_level: 'experienced', summary: 'High-energy endurance athlete needing 2+ hours of exercise daily.', scores: { energy: 5, trainability: 3, social: 3, grooming: 3, vocal: 3 } },
+                    { name: 'French Bulldog', size: 'small', energy: 'low', trainability: 'easy', grooming: 'low', vocalness: 'low', good_with_kids: 'yes', good_with_pets: 'yes', apartment_friendly: 'yes', alone_tolerance: 'poor', experience_level: 'novice', summary: 'Affectionate and easygoing, but suffers from serious health issues.', scores: { energy: 1, trainability: 4, social: 5, grooming: 1, vocal: 1 } },
+                    { name: 'Standard Poodle', size: 'large', energy: 'high', trainability: 'easy', grooming: 'high', vocalness: 'moderate', good_with_kids: 'yes', good_with_pets: 'yes', apartment_friendly: 'possible', alone_tolerance: 'poor', experience_level: 'novice', summary: 'Exceptionally intelligent; hypoallergenic coat requires extensive grooming.', scores: { energy: 4, trainability: 5, social: 4, grooming: 5, vocal: 3 } },
+                    { name: 'Bulldog', size: 'medium', energy: 'low', trainability: 'challenging', grooming: 'low', vocalness: 'low', good_with_kids: 'yes', good_with_pets: 'supervision', apartment_friendly: 'yes', alone_tolerance: 'moderate', experience_level: 'novice', summary: 'Calm and courageous, but stubborn and with significant health issues.', scores: { energy: 1, trainability: 2, social: 4, grooming: 1, vocal: 2 } },
+                    { name: 'Boston Terrier', size: 'small', energy: 'moderate', trainability: 'easy', grooming: 'low', vocalness: 'moderate', good_with_kids: 'yes', good_with_pets: 'yes', apartment_friendly: 'yes', alone_tolerance: 'moderate', experience_level: 'novice', summary: 'The "American Gentleman," lively, smart, and affectionate.', scores: { energy: 3, trainability: 4, social: 5, grooming: 1, vocal: 3 } },
+                ]},
+                'Herding': { emoji: '🐑', tagline: 'The Intelligent Stock Manager', breeds: [
+                    { name: 'Border Collie', size: 'medium', energy: 'very_high', trainability: 'easy', grooming: 'moderate', vocalness: 'high', good_with_kids: 'supervision', good_with_pets: 'supervision', apartment_friendly: 'no', alone_tolerance: 'poor', experience_level: 'experienced', summary: 'Workaholic genius, needs a job to be happy.', scores: { energy: 5, trainability: 5, social: 3, grooming: 3, vocal: 4 } },
+                    { name: 'Australian Shepherd', size: 'medium', energy: 'very_high', trainability: 'easy', grooming: 'moderate', vocalness: 'high', good_with_kids: 'supervision', good_with_pets: 'supervision', apartment_friendly: 'no', alone_tolerance: 'poor', experience_level: 'intermediate', summary: 'Intelligent and hard-working; can become destructive if bored.', scores: { energy: 5, trainability: 5, social: 3, grooming: 3, vocal: 4 } },
+                    { name: 'Pembroke Welsh Corgi', size: 'small', energy: 'high', trainability: 'easy', grooming: 'high', vocalness: 'high', good_with_kids: 'supervision', good_with_pets: 'supervision', apartment_friendly: 'yes', alone_tolerance: 'moderate', experience_level: 'novice', summary: 'Athletic and lively herder; very vocal and prone to nipping.', scores: { energy: 4, trainability: 4, social: 3, grooming: 4, vocal: 5 } },
+                    { name: 'Shetland Sheepdog', size: 'small', energy: 'high', trainability: 'easy', grooming: 'high', vocalness: 'high', good_with_kids: 'yes', good_with_pets: 'yes', apartment_friendly: 'possible', alone_tolerance: 'poor', experience_level: 'novice', summary: 'A smaller "Lassie," bright, playful, and a prolific barker.', scores: { energy: 4, trainability: 5, social: 4, grooming: 5, vocal: 5 } },
+                ]}
+            };
+
+            const sections = document.querySelectorAll('.app-section');
+            const navButtons = document.querySelectorAll('.nav-button');
+            const submitQuizBtn = document.getElementById('submit-quiz');
+            const resultsContainer = document.getElementById('results-container');
+            const quizError = document.getElementById('quiz-error');
+            const exploreTabsContainer = document.getElementById('explore-tabs');
+            const exploreContentContainer = document.getElementById('explore-content');
+            const compareSelects = [
+                document.getElementById('compare-select-1'),
+                document.getElementById('compare-select-2'),
+                document.getElementById('compare-select-3')
+            ];
+            const compareChartsContainer = document.getElementById('compare-charts');
+            const modal = document.getElementById('breed-modal');
+            const modalContent = document.getElementById('breed-modal-content');
+            let charts = {};
+
+            function switchView(targetId) {
+                sections.forEach(section => section.classList.toggle('hidden', section.id !== targetId));
+                navButtons.forEach(button => button.classList.toggle('active', button.dataset.target === targetId));
+                window.scrollTo(0, 0);
+            }
+
+            navButtons.forEach(button => button.addEventListener('click', () => switchView(button.dataset.target)));
+
+            function findMatchingBreeds(answers) {
+                const allBreeds = [];
+                for (const groupName in breedData) {
+                    breedData[groupName].breeds.forEach(breed => {
+                        allBreeds.push({ ...breed, group: groupName });
+                    });
+                }
+
+                const scoredBreeds = allBreeds.map(breed => {
+                    let score = 0;
+                    // Activity
+                    const energyMap = { low: 1, moderate: 3, high: 5, very_high: 5 };
+                    const activityMap = { low: 1, moderate: 3, high: 5 };
+                    score -= Math.abs(energyMap[breed.energy] - activityMap[answers.activity]) * 3;
+                    
+                    // Home
+                    if (answers.home === 'apartment') {
+                        if (breed.apartment_friendly === 'yes') score += 10;
+                        else if (breed.apartment_friendly === 'possible') score += 3;
+                        else score -= 10;
+                    }
+                    
+                    // Experience
+                    const expMap = { novice: 1, intermediate: 2, experienced: 3 };
+                    if (expMap[answers.experience] < expMap[breed.experience_level]) {
+                        score -= 15; // Heavy penalty for mismatch
+                    } else {
+                        score += 5;
+                    }
+
+                    // Household
+                    if (answers.household === 'kids') {
+                        if (breed.good_with_kids === 'yes') score += 10;
+                        else if (breed.good_with_kids === 'supervision') score += 3;
+                        else score -= 10;
+                    } else if (answers.household === 'pets') {
+                        if (breed.good_with_pets === 'yes') score += 10;
+                        else if (breed.good_with_pets === 'supervision') score += 3;
+                        else score -= 10;
+                    }
+                    
+                    // Time Alone
+                    if (answers.alone === 'long_hours') {
+                        if (breed.alone_tolerance === 'good') score += 10;
+                        else if (breed.alone_tolerance === 'moderate') score += 3;
+                        else score -= 15; // Heavy penalty
+                    }
+
+                    return { ...breed, score };
+                });
+
+                return scoredBreeds.sort((a, b) => b.score - a.score);
+            }
+            
+            function createResultCard(breed) {
+                let categoryClass, categoryText;
+                if (breed.score > 20) {
+                    categoryClass = 'bg-green-100 text-green-800';
+                    categoryText = 'Excellent Match';
+                } else if (breed.score > 10) {
+                    categoryClass = 'bg-blue-100 text-blue-800';
+                    categoryText = 'Good Match';
+                } else {
+                    categoryClass = 'bg-yellow-100 text-yellow-800';
+                    categoryText = 'Consider Carefully';
+                }
+
+                return `
+                    <div class="result-card bg-white p-4 rounded-lg fade-in flex items-center space-x-4" data-breed="${breed.name}" data-group="${breed.group}">
+                        <span class="text-4xl">${breedData[breed.group].emoji}</span>
+                        <div class="flex-grow">
+                            <div class="flex justify-between items-baseline">
+                                <h3 class="text-lg font-bold text-gray-800">${breed.name}</h3>
+                                <span class="text-xs font-semibold px-2 py-1 rounded-full ${categoryClass}">${categoryText}</span>
+                            </div>
+                            <p class="text-sm text-gray-500 font-medium">${breed.group} Group</p>
+                            <p class="text-sm mt-2 text-gray-600">${breed.summary}</p>
+                        </div>
+                    </div>
+                `;
+            }
+
+            submitQuizBtn.addEventListener('click', () => {
+                const answers = {
+                    activity: document.querySelector('input[name="activity"]:checked')?.value,
+                    home: document.querySelector('input[name="home"]:checked')?.value,
+                    experience: document.querySelector('input[name="experience"]:checked')?.value,
+                    household: document.querySelector('input[name="household"]:checked')?.value,
+                    alone: document.querySelector('input[name="alone"]:checked')?.value,
+                };
+
+                if (Object.values(answers).some(v => !v)) {
+                    quizError.classList.remove('hidden');
+                    return;
+                }
+                quizError.classList.add('hidden');
+
+                const sortedBreeds = findMatchingBreeds(answers);
+                const topResults = sortedBreeds.slice(0, 10);
+
+                let resultsHTML = `<div class="text-center mb-10"><h2 class="text-3xl font-bold">Your Top Breed Matches</h2><p class="text-gray-600 mt-2">Based on your answers, here are some breeds that might be a great fit. Click any card for details.</p></div>`;
+                resultsHTML += '<div class="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-4xl mx-auto">';
+                topResults.forEach(breed => resultsHTML += createResultCard(breed));
+                resultsHTML += '</div>';
+
+                resultsContainer.innerHTML = resultsHTML;
+                resultsContainer.classList.remove('hidden');
+                resultsContainer.scrollIntoView({ behavior: 'smooth' });
+
+                document.querySelectorAll('.result-card').forEach(card => {
+                    card.addEventListener('click', () => {
+                        showBreedModal(card.dataset.breed, card.dataset.group);
+                    });
+                });
+            });
+            
+            function showBreedModal(breedName, groupName) {
+                const group = breedData[groupName];
+                const breed = group.breeds.find(b => b.name === breedName);
+                if (!breed) return;
+
+                const modalHTML = `
+                    <div class="p-6 md:p-8 relative">
+                        <button id="modal-close-btn" class="absolute top-4 right-4 text-gray-400 hover:text-gray-600">&times;</button>
+                        <div class="grid grid-cols-1 lg:grid-cols-5 gap-8">
+                            <div class="lg:col-span-3">
+                                <span class="text-5xl">${group.emoji}</span>
+                                <h3 class="text-3xl font-bold text-gray-800 mt-2">${breed.name}</h3>
+                                <p class="text-lg font-medium text-gray-500">${group.tagline}</p>
+                                <p class="mt-4 text-gray-700">${breed.summary}</p>
+                                
+                                <div class="mt-6 grid grid-cols-2 sm:grid-cols-3 gap-4 text-sm">
+                                    <div class="bg-gray-50 p-3 rounded-md"><strong>Size:</strong> <span class="capitalize">${breed.size}</span></div>
+                                    <div class="bg-gray-50 p-3 rounded-md"><strong>Experience:</strong> <span class="capitalize">${breed.experience_level}</span></div>
+                                    <div class="bg-gray-50 p-3 rounded-md"><strong>Energy:</strong> <span class="capitalize">${breed.energy.replace('_', ' ')}</span></div>
+                                    <div class="bg-gray-50 p-3 rounded-md"><strong>Trainability:</strong> <span class="capitalize">${breed.trainability}</span></div>
+                                    <div class="bg-gray-50 p-3 rounded-md"><strong>Grooming:</strong> <span class="capitalize">${breed.grooming}</span></div>
+                                    <div class="bg-gray-50 p-3 rounded-md"><strong>Apartment Life:</strong> <span class="capitalize">${breed.apartment_friendly}</span></div>
+                                </div>
+                            </div>
+                            <div class="lg:col-span-2">
+                                <div class="bg-gray-100 p-4 rounded-lg">
+                                    <h4 class="font-semibold text-center mb-2">Trait Overview</h4>
+                                    <div class="chart-container">
+                                        <canvas id="modal-chart"></canvas>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+                modalContent.innerHTML = modalHTML;
+                modal.classList.remove('hidden');
+                modal.classList.add('flex');
+                setTimeout(() => modalContent.classList.remove('scale-95'), 10);
+                
+                createRadarChart('modal-chart', breed);
+
+                document.getElementById('modal-close-btn').addEventListener('click', hideBreedModal);
+                modal.addEventListener('click', (e) => {
+                    if (e.target === modal) hideBreedModal();
+                });
+            }
+
+            function hideBreedModal() {
+                modalContent.classList.add('scale-95');
+                setTimeout(() => modal.classList.add('hidden'), 300);
+            }
+
+            function createRadarChart(canvasId, breed) {
+                const ctx = document.getElementById(canvasId)?.getContext('2d');
+                if (!ctx) return;
+                
+                if (charts[canvasId]) charts[canvasId].destroy();
+
+                charts[canvasId] = new Chart(ctx, {
+                    type: 'radar',
+                    data: {
+                        labels: ['Energy', 'Trainability', 'Social', 'Grooming', 'Vocal'],
+                        datasets: [{
+                            label: breed.name,
+                            data: Object.values(breed.scores),
+                            backgroundColor: 'rgba(140, 90, 58, 0.2)',
+                            borderColor: 'rgba(140, 90, 58, 1)',
+                            borderWidth: 2
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        scales: { r: { suggestedMin: 0, suggestedMax: 5, pointLabels: { font: { size: 12 } }, ticks: { stepSize: 1 } } },
+                        plugins: { legend: { display: false } }
+                    }
+                });
+            }
+
+            function renderExploreContent(groupName) {
+                const group = breedData[groupName];
+                if (!group) return;
+
+                const breedListHTML = group.breeds.map(breed => `
+                    <div class="result-card bg-white p-4 rounded-lg" data-breed="${breed.name}" data-group="${groupName}">
+                        <h4 class="font-semibold text-gray-800">${breed.name}</h4>
+                        <p class="text-sm text-gray-600">${breed.summary}</p>
+                    </div>
+                `).join('');
+
+                exploreContentContainer.innerHTML = `
+                    <div class="text-center mb-8">
+                        <h3 class="text-2xl font-bold">${group.emoji} The ${groupName} Group</h3>
+                        <p class="text-gray-600 mt-1">${group.tagline}</p>
+                    </div>
+                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 max-w-5xl mx-auto">${breedListHTML}</div>
+                `;
+                
+                exploreContentContainer.querySelectorAll('.result-card').forEach(card => {
+                    card.addEventListener('click', () => showBreedModal(card.dataset.breed, card.dataset.group));
+                });
+            }
+
+            function initExplore() {
+                Object.keys(breedData).forEach(groupName => {
+                    const button = document.createElement('button');
+                    button.className = 'nav-button font-medium px-4 py-2 text-sm rounded-md border-b-2';
+                    button.textContent = groupName;
+                    button.dataset.group = groupName;
+                    button.addEventListener('click', () => {
+                        exploreTabsContainer.querySelectorAll('.nav-button').forEach(btn => btn.classList.remove('active'));
+                        button.classList.add('active');
+                        renderExploreContent(groupName);
+                    });
+                    exploreTabsContainer.appendChild(button);
+                });
+                const firstButton = exploreTabsContainer.querySelector('.nav-button');
+                firstButton.classList.add('active');
+                renderExploreContent(firstButton.dataset.group);
+            }
+            
+            function initCompare() {
+                const allBreeds = [{name: 'None', group: ''}];
+                for (const groupName in breedData) {
+                    breedData[groupName].breeds.forEach(b => allBreeds.push({name: b.name, group: groupName}));
+                }
+                
+                const optionsHTML = allBreeds.map(b => `<option value="${b.name}" data-group="${b.group}">${b.name === 'None' ? 'Select a Breed' : `${b.name} (${b.group})`}</option>`).join('');
+
+                compareSelects.forEach(select => {
+                    select.innerHTML = optionsHTML;
+                    select.addEventListener('change', renderCompareCharts);
+                });
+                renderCompareCharts();
+            }
+
+            function renderCompareCharts() {
+                compareChartsContainer.innerHTML = '';
+                const selectedBreeds = compareSelects.map(s => {
+                    const selectedOption = s.options[s.selectedIndex];
+                    return { name: selectedOption.value, group: selectedOption.dataset.group };
+                }).filter(b => b.name !== 'None');
+                
+                if (selectedBreeds.length === 0) {
+                    compareChartsContainer.innerHTML = `<p class="text-center text-gray-500 col-span-full">Select one or more breeds to compare their traits.</p>`;
+                    return;
+                }
+
+                selectedBreeds.forEach((b, index) => {
+                    const breed = breedData[b.group]?.breeds.find(br => br.name === b.name);
+                    if (!breed) return;
+                    const chartId = `compare-chart-${index}`;
+                    const chartWrapper = document.createElement('div');
+                    chartWrapper.className = 'bg-white p-4 rounded-lg border border-gray-200 shadow-sm';
+                    chartWrapper.innerHTML = `
+                        <h4 class="font-semibold text-center mb-2">${breed.name}</h4>
+                        <div class="chart-container">
+                            <canvas id="${chartId}"></canvas>
+                        </div>
+                    `;
+                    compareChartsContainer.appendChild(chartWrapper);
+                    createRadarChart(chartId, breed);
+                });
+            }
+
+            initExplore();
+            initCompare();
+        });
+    </script>
+</body>
+</html>
